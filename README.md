@@ -187,7 +187,7 @@ G2 continuous curvature 是公开数学方案，不是 martin65536 的独占技�
 
 martin65536 列出的所有技术问题是他的原版同样存在的问题。拿着AI生成的大作文到处炫耀----一句话：文盲
 
-## 喷不动了，看这里[接着喷]([链接地址](https://blog.goose.cc.cd/post/why-github-is-getting-worse))
+- 喷不动了，看这里[接着喷]([链接地址](https://blog.goose.cc.cd/post/why-github-is-getting-worse))
 
 ## License
 
