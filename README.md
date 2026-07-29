@@ -31,7 +31,7 @@
 |------|------|--------|
 | 原项目 | [Kyant0/AndroidLiquidGlass](https://github.com/Kyant0/AndroidLiquidGlass) | Android, Kotlin |
 | WebGL 移植版 | [martin65536/liquid-glass-webgl](https://github.com/martin65536/liquid-glass-webgl) | Next.js, WebGL |
-| AI 辅助开发 | WorkBuddy · DeepSeekv4-pro · DeepSeekv4-flash · Hunyuan3 | 代码生成、文档、调试 |
+| AI 辅助开发 | WorkBuddy · DeepSeekv4-pro · DeepSeekv4-flash · Hunyuan3 | \ |
 
 GooseHyperGlassCDN2.0 在其基础上做了：
 - Web 端打包成零依赖的 IIFE bundle（esbuild）
