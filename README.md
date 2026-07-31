@@ -1,4 +1,4 @@
-# GooseHyperGlassCDN 2.0
+# GooseHyperGlassCDN 2.X
 
 <p align="center">
   <a href="#中文">🇨🇳 中文</a> &nbsp;|&nbsp;
