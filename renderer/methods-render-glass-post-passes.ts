@@ -2,6 +2,13 @@ import type { LiquidGlassRenderer } from './index'
 import type { GlassRenderState } from './methods-gooseRender-glass'
 import { gooseDP } from './spring'
 import { continuousCurvatureRoundedRectPath } from './continuous-curve'
+import {
+  gooseBuildInnerShadowMaskKey,
+  gooseGetOrCreateMaskEntry,
+  gooseUploadMaskTexture,
+} from './inner-shadow-cache'
+import type { GooseInnerShadowMaskParams } from './inner-shadow-mask'
+import { gooseGenerateInnerShadowMask } from './inner-shadow-mask'
 
 declare module './index' {
   interface LiquidGlassRenderer {
@@ -10,9 +17,9 @@ declare module './index' {
 }
 
 export const glassPostPassMethods = {
-  /** Steps 2c–2f: Press glow, white overlay, foreground, rim highlight.
-   *  These all composite on top of the glass body (already drawn to
-   *  otherFbo by gooseGlassPass). */
+  /** Steps 2b–2g: Inner shadow, press glow, white overlay, foreground,
+   *  rim highlight. These all composite on top of the glass body (already
+   *  drawn to otherFbo by gooseGlassPass). */
   gooseGlassPost(this: LiquidGlassRenderer, state: GlassRenderState) {
     const gl = this.gl
     const { el, st, isButton, p, sx, sy, sw, sh, radii, togglePressProgress, elHighlightAlpha } = state
@@ -25,6 +32,111 @@ export const glassPostPassMethods = {
     const origRadius = state.origCornerRadius * this.dpr
     const layerScaleX = state.layerScaleX
     const layerScaleY = state.layerScaleY
+
+    // --- Step 2b: Inner shadow post-passes (Canvas2D ring mask approach) ---
+    // Inner shadows are drawn on the element surface, underneath the press glow.
+    // Each shadow uses a Canvas2D-generated blurred ring mask (fill shape →
+    // destination-out offset shape → blur), composited via the
+    // INNER_SHADOW_MASK_COMPOSITE_FRAGMENT_SHADER with SrcOver blend.
+    // SDF clip in the shader ensures the shadow stays inside the shape boundary.
+
+    /** Helper: draw one inner shadow post-pass (shadow1 or shadow2). */
+    const gooseDrawInnerShadowPass = (
+      shadowCfg: { radius: number; alpha: number; offsetX: number; offsetY: number; color?: [number, number, number] },
+      shadowIndex: number // 0 = the only inner shadow (original has just ONE)
+    ) => {
+      // Progress modulation — faithful to the original inline shader:
+      //   - Toggle knobs: radius, alpha, offset all modulated by togglePressProgress
+      //   - Bottom-tab indicator: radius, alpha, offset modulated by togglePressProgress
+      //   - Other elements (magnifier): static params, no modulation
+      const progress = (el.isToggleKnob || el.isBottomTabIndicator) ? togglePressProgress : 1
+      let shadowAlpha = shadowCfg.alpha * progress * state.enterAlpha
+      let shadowRadius = shadowCfg.radius * progress
+      let shadowOffsetX = shadowCfg.offsetX * progress
+      let shadowOffsetY = shadowCfg.offsetY * progress
+
+      if (shadowAlpha <= 0.001 || shadowRadius <= 0.5) return
+
+      // Blur sigma = radius * dpr (BlurEffect semantics: sigma = radius directly).
+      const blurSigma = shadowRadius * this.dpr  // device px — sigma = radius, not radius/3
+      // Margin for blur spread (3σ) + AA
+      const margin = Math.ceil(blurSigma * 3) + 2
+      // Mask dimensions in device px (origSize + 2*margin)
+      const maskW = Math.max(1, Math.ceil(origSizeX + 2 * margin))
+      const maskH = Math.max(1, Math.ceil(origSizeY + 2 * margin))
+      // Supersampling for sharper mask rasterization
+      const deviceDpr = window.devicePixelRatio || 1
+      const SS = Math.min(2, Math.max(1, Math.floor(deviceDpr / this.dpr)))
+      const useG2 = !!el.useContinuousSdf
+
+      // Offset in device px (already × progress)
+      const offsetXDp = shadowOffsetX * this.dpr
+      const offsetYDp = shadowOffsetY * this.dpr
+
+      // Build mask params for the mask generator
+      const maskParams: GooseInnerShadowMaskParams = {
+        w: origSizeX,
+        h: origSizeY,
+        radius: origRadius,
+        offsetX: offsetXDp,
+        offsetY: offsetYDp,
+        blurSigma,
+        margin,
+        useG2,
+        supersample: SS,
+      }
+
+      // Build cache key and get/create cache entry
+      const key = gooseBuildInnerShadowMaskKey(shadowIndex, maskParams)
+      const entry = gooseGetOrCreateMaskEntry(this.innerShadowMaskCache, gl, key, maskW, maskH)
+
+      // Generate mask and upload texture if not ready
+      if (!entry.ready) {
+        const result = gooseGenerateInnerShadowMask(maskParams)
+        gooseUploadMaskTexture(gl, entry, result)
+      }
+
+      // --- Composite: inner shadow mask × shadowAlpha × shadowColor → scene ---
+      // PREMULTIPLIED SrcOver: the shader outputs vec4(color*alpha, alpha) (premultiplied).
+      // Using blendFunc(ONE, ONE_MINUS_SRC_ALPHA) avoids squaring the alpha (which
+      // would make innerShadow at alpha=0.15 contribute only 0.15²=0.0225 — invisible).
+      gl.enable(gl.BLEND)
+      gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
+      gl.useProgram(this.innerShadowMaskCompositeProgram)
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuffer)
+      gl.enableVertexAttribArray(this.aPosLocIs)
+      gl.vertexAttribPointer(this.aPosLocIs, 2, gl.FLOAT, false, 0, 0)
+
+      gl.uniform2f(this.uIs['uCanvasSize'], this.canvas.width, this.canvas.height)
+      gl.uniform2f(this.uIs['uOffset'], sx * this.dpr, sy * this.dpr)
+      gl.uniform2f(this.uIs['uSize'], sw * this.dpr, sh * this.dpr)
+      gl.uniform4f(this.uIs['uCornerRadii'], radii[0] * this.dpr, radii[1] * this.dpr, radii[2] * this.dpr, radii[3] * this.dpr)
+
+      gl.activeTexture(gl.TEXTURE0)
+      gl.bindTexture(gl.TEXTURE_2D, entry.tex)
+      gl.uniform1i(this.uIs['uInnerShadowMask'], 0)
+      // uMaskOffset/uMaskSize are in LOGICAL (1x device px) space — the
+      // physical canvas is SS× larger but the shader uses 1x coords for UV.
+      gl.uniform2f(this.uIs['uMaskOffset'], margin, margin)
+      gl.uniform2f(this.uIs['uMaskSize'], entry.w, entry.h)
+
+      // Shadow color (defaults to black [0,0,0] if not specified)
+      const color = shadowCfg.color ?? [0, 0, 0]
+      gl.uniform3f(this.uIs['uInnerShadowColor'], color[0], color[1], color[2])
+      gl.uniform1f(this.uIs['uInnerShadowAlpha'], shadowAlpha)
+
+      gl.uniform2f(this.uIs['uOriginalSize'], origSizeX, origSizeY)
+      gl.uniform1f(this.uIs['uOriginalCornerRadius'], origRadius)
+      gl.uniform2f(this.uIs['uLayerScale'], layerScaleX, layerScaleY)
+      gl.uniform1f(this.uIs['uElementRotation'], state.elementRotation)
+      gl.drawArrays(gl.TRIANGLES, 0, 6)
+    }
+
+    // Inner shadow (faithful to the original — only ONE black inner shadow,
+    // no innerShadow2. LiquidToggle.kt: InnerShadow(radius=4dp*progress, alpha=progress))
+    if (el.innerShadow) {
+      gooseDrawInnerShadowPass(el.innerShadow, 0)
+    }
 
     // --- Step 2c: Press glow (button + bottom-tab container) ---
     // Faithful to InteractiveHighlight.kt: a flat white Plus-blend overlay

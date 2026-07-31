@@ -403,19 +403,7 @@ export const glassElementPassMethods = {
       gl.uniform1f(this.uEl['uHighlightBlur'], 0)
     }
 
-    if (elInnerShadowAlpha > 0.001 && elInnerShadowRadius > 0.5) {
-      gl.uniform1f(this.uEl['uInnerShadowRadius'], elInnerShadowRadius * this.dpr)
-      gl.uniform1f(this.uEl['uInnerShadowAlpha'], elInnerShadowAlpha)
-      gl.uniform2f(
-        this.uEl['uInnerShadowOffset'],
-        elInnerShadowOffsetX * this.dpr,
-        elInnerShadowOffsetY * this.dpr
-      )
-    } else {
-      gl.uniform1f(this.uEl['uInnerShadowRadius'], 0)
-      gl.uniform1f(this.uEl['uInnerShadowAlpha'], 0)
-      gl.uniform2f(this.uEl['uInnerShadowOffset'], 0, 0)
-    }
+    // (Inner shadow moved to Step 2b post-pass — Canvas2D ring mask approach.)
 
     // --- SDF texture glass: bind sdfTexture + set SDF uniforms ---
     if (el.isSdfTexture && this.sdfTexture) {

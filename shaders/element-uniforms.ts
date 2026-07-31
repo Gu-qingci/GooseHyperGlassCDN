@@ -40,9 +40,7 @@ uniform float uHighlightAlpha;
 uniform float uHighlightMode;     // 0=default, 1=ambient, 2=plain
 uniform float uHighlightStrokeWidth; // px (full stroke width, matching paint.strokeWidth)
 uniform float uHighlightBlur;     // px (BlurMaskFilter radius)
-uniform float uInnerShadowRadius;
-uniform float uInnerShadowAlpha;
-uniform vec2  uInnerShadowOffset;
+// (Inner shadow removed — moved to Step 2b post-pass with Canvas2D ring mask.)
 // Content scale (non-uniform, faithful to LiquidToggle.kt / LiquidSlider.kt):
 //   scale(scaleX, scaleY) { drawBackdrop() }
 // Toggle: X gooseLerp(2/3, 0.75, p), Y gooseLerp(0, 0.75, p)

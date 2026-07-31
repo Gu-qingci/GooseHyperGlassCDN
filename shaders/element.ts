@@ -28,7 +28,15 @@ import { generateElementUtilsGLSL, DEFAULT_BLUR_TAPS } from './element-utils'
 export function generateElementFragmentShader(tapCount: number = DEFAULT_BLUR_TAPS): string {
   const utilsGlsl = generateElementUtilsGLSL(tapCount)
   return /* glsl */ `
+// Enable derivative functions (fwidth) for adaptive edge anti-aliasing.
+// No-op on WebGL2; required on WebGL1 via OES_standard_derivatives.
+#extension GL_OES_standard_derivatives : enable
+
+#ifdef GL_FRAGMENT_PRECISION_HIGH
 precision highp float;
+#else
+precision mediump float;
+#endif
 
 ${ELEMENT_UNIFORMS_GLSL}
 
@@ -143,8 +151,10 @@ void main() {
         if (mask < 0.01) discard;
         edgeAlpha = mask;
     } else {
-        if (sd > 0.5) discard;
-        edgeAlpha = 1.0 - smoothstep(-0.5, 0.5, sd);
+        if (sd > 1.5) discard;
+        // 抗锯齿：过渡带宽度自适应屏幕像素（约 3 物理像素），半透明玻璃也能看清羽化
+        float aaWidth = max(fwidth(sd), 1.0) * 1.5;
+        edgeAlpha = 1.0 - smoothstep(-aaWidth, aaWidth, sd);
     }
 
     // --- 1. Backdrop sample (before refraction) -------------------
@@ -317,39 +327,11 @@ void main() {
     // element's edge AA, which is wrong — the highlight layer is composited
     // on top with its own blend mode.
 
-    // --- 6. Inner shadow ------------------------------------------
-    // Faithful to InnerShadowModifier.kt:
-    //   1. Draw the shape outline with shadow color (Black 0.15)
-    //   2. Translate by offset (0, radius) — shadow shifts DOWN
-    //   3. Clear (BlendMode.Clear) the shape outline at the offset position
-    //      → this punches a hole, leaving only the ring (top edge) visible
-    //   4. Blur the whole layer by radius
-    //   5. Composite over content with shadow.alpha (SrcOver)
-    //
-    // The result: a darkened band at the TOP inner edge (because the shape
-    // is offset downward, the top part of the ring remains after the clear).
-    // The blur softens it into a gradient.
-    //
-    // We approximate this with an inverted SDF: the shadow appears where
-    // the pixel is INSIDE the shape but OUTSIDE the offset shape (the ring).
-    // The offset shifts the inner shape DOWN (positive Y), so the ring is
-    // thicker at the top.
-    if (uInnerShadowAlpha > 0.001 && uInnerShadowRadius > 0.5) {
-        // The offset shape: same rect but shifted by the shadow offset.
-        // Original: draw outline → translate(offset) → clear outline.
-        // This means the clear happens at the offset position, removing
-        // the bottom part of the filled outline. What remains is the top.
-        // SDF approach: we're inside the shape (sd < 0) and the offset
-        // shape's SDF at this pixel is > 0 (outside the offset shape).
-        vec2 offsetCentered = centeredOrigRot - uInnerShadowOffset;
-        float offsetSd = sdShape(offsetCentered, origHalfSize, origRadius);
-        // Ring = inside original (sd < 0) AND outside offset shape (offsetSd > 0)
-        // Plus blur falloff based on distance into the ring.
-        float ring = smoothstep(0.0, uInnerShadowRadius, offsetSd) *
-                     (1.0 - smoothstep(-uInnerShadowRadius, 0.0, sd));
-        // ring is 1 in the middle of the ring, fading at both edges.
-        color *= 1.0 - ring * uInnerShadowAlpha;
-    }
+    // --- 6. Inner shadow (REMOVED) --------------------------------
+    // Moved to Step 2b post-pass: Canvas2D blurred ring mask + separate
+    // INNER_SHADOW_MASK_COMPOSITE pass (true Gaussian blur, faithful to
+    // InnerShadowModifier.kt's BlurEffect). The old inline SDF approximation
+    // was deleted.
 
     // --- 7. Edge anti-aliasing -----------------------------------
     // edgeAlpha was computed earlier (mask mode: direct coverage, analytic: smoothstep).

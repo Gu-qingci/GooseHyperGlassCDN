@@ -30,6 +30,7 @@ import { SDF_GLSL } from './sdf'
  * glow ~50x dimmer (e.g. 0.15² = 0.0225 — essentially invisible).
  * ------------------------------------------------------------------ */
 export const HIGHLIGHT_FRAGMENT_SHADER = /* glsl */ `
+#extension GL_OES_standard_derivatives : enable
 precision highp float;
 
 uniform vec2  uCanvasSize;
@@ -91,6 +92,7 @@ void main() {
  * corners OUTSIDE the capsule. We discard sd > 0.5 with 1px AA.
  * ------------------------------------------------------------------ */
 export const TINT_FRAGMENT_SHADER = /* glsl */ `
+#extension GL_OES_standard_derivatives : enable
 precision highp float;
 
 uniform vec2  uCanvasSize;
@@ -145,6 +147,7 @@ void main() {
  *   SrcOver blend: output = (t*i, t*i, t*i, i) where i = intensity * mask.
  * ------------------------------------------------------------------ */
 export const RIM_HIGHLIGHT_FRAGMENT_SHADER = /* glsl */ `
+#extension GL_OES_standard_derivatives : enable
 precision highp float;
 
 uniform vec2  uCanvasSize;
@@ -292,6 +295,7 @@ void main() {
  * stroke's alpha fringe outward (matching BlurMaskFilter NORMAL behavior).
  * ------------------------------------------------------------------ */
 export const HIGHLIGHT_STROKE_FRAGMENT_SHADER = /* glsl */ `
+#extension GL_OES_standard_derivatives : enable
 precision highp float;
 
 uniform vec2  uCanvasSize;
@@ -328,8 +332,9 @@ void main() {
         if (mask < 0.01) discard;
         edgeAA = mask;
     } else {
-        if (sd > 0.0) discard;
-        edgeAA = 1.0 - smoothstep(-0.5, 0.5, sd);
+        if (sd > 1.0) discard;
+        float aaWidth = max(fwidth(sd), 1.0) * 1.5;
+        edgeAA = 1.0 - smoothstep(-aaWidth, aaWidth, sd);
     }
 
     // Stroke band centered on the edge (sd = 0), with 0.5px coverage AA on
@@ -340,7 +345,8 @@ void main() {
     // is what matches the original's look (Skia's 0.25px blur is negligibly
     // soft — essentially just AA).
     float strokeHalf = uHighlightStrokeWidth * 0.5;
-    float strokeAA = 1.0 - smoothstep(strokeHalf - 0.5, strokeHalf, abs(sd));
+    float strokeAAWidth = max(fwidth(sd), 1.0) * 1.5;
+    float strokeAA = 1.0 - smoothstep(strokeHalf - strokeAAWidth, strokeHalf, abs(sd));
 
     gl_FragColor = vec4(0.0, 0.0, 0.0, strokeAA * edgeAA);
 }
@@ -371,6 +377,7 @@ void main() {
  *   - Plain (mode 2): Plus blend, no intensity (even stroke).
  * ------------------------------------------------------------------ */
 export const HIGHLIGHT_COMPOSITE_FRAGMENT_SHADER = /* glsl */ `
+#extension GL_OES_standard_derivatives : enable
 precision highp float;
 
 uniform vec2  uCanvasSize;

@@ -14,13 +14,13 @@
 //
 // Assets are NEVER bundled. `wallpaper` = image URL (default: a generated
 // gradient, file:// safe). `clock-sdf` = optional URL for SDF clock texture.
-import { LiquidGlassRenderer } from './renderer'
+import { LiquidGlassRenderer } from '../renderer'
 import {
   gooseBuild,
   GooseDest,
   gooseDefState,
   gooseDragGroups,
-} from './catalog'
+} from '../catalog'
 
 type AnyEl = any
 type Interact = {
@@ -347,6 +347,11 @@ class LiquidGlass extends HTMLElement {
   /** 配置底部标签栏内容：[[{icon,label}...],[{icon,label}...]]（两组，可只传一组）。icon 为 SVG path 字符串。 */
   setTabs(config: AnyEl) {
     this._tabsConfig = config
+    this._rebuild()
+  }
+  /** 配置按钮组。注意：对外接口是 setButtons，不是 gooseButtons。 */
+  setButtons(config: AnyEl) {
+    this._buttonsConfig = config
     this._rebuild()
   }
   /** 配置按钮组：[{id?, label?, style?}]，每个按钮独立（文字 + 样式）。style: 'transparent'|'surface'|'blue'|'orange' 或自定义 rgba 色。 */
