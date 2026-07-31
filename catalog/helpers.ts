@@ -159,39 +159,6 @@ export const toggleDragBindings = {
   setTarget: (r: LiquidGlassRenderer, id: string, f: number) => r.gooseTglTarget(id, f),
 }
 
-// Bottom tabs: fraction (0..1) ↔ index (0..count-1) conversion at the
-// binding layer. The renderer works in INDEX space (0..count-1), but
-// gooseDrag works in FRACTION space (0..1). The bindings
-// convert: getFraction divides by (count-1), setTarget/beginDrag/drag
-// multiply by (count-1).
-export const tabDragBindings = {
-  getFraction: (r: LiquidGlassRenderer, id: string, count?: number) => {
-    const c = count ?? 3
-    // Use TARGET (not animated) fraction — faithful to the original which
-    // uses `targetValue` in onDrag, not the animated value. Starting a drag
-    // from the animated value (mid-spring) causes drift because the spring's
-    // residual motion adds to the finger delta.
-    return r.gooseTabTarget(id) / Math.max(1, c - 1)
-  },
-  beginDrag: (r: LiquidGlassRenderer, id: string, f: number, count?: number) => {
-    const c = count ?? 3
-    r.gooseTabDragStart(id, f * (c - 1), c)
-  },
-  drag: (r: LiquidGlassRenderer, id: string, sf: number, cx: number, sx: number, dw: number, count?: number) => {
-    const c = count ?? 3
-    r.gooseTabDrag(id, sf * (c - 1), cx, sx, dw, c)
-  },
-  endDrag: (r: LiquidGlassRenderer, id: string, count?: number) => {
-    const c = count ?? 3
-    // gooseTabDragEnd returns an INDEX (0..c-1). Convert to fraction (0..1).
-    return r.gooseTabDragEnd(id, c) / Math.max(1, c - 1)
-  },
-  setTarget: (r: LiquidGlassRenderer, id: string, f: number, count?: number) => {
-    const c = count ?? 3
-    r.gooseTabSel(id, Math.max(0, Math.min(c - 1, Math.round(f * (c - 1)))), c)
-  },
-}
-
 export function gooseSlider(
   idPrefix: string,
   trackX: number,

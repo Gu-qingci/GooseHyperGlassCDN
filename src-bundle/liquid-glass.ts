@@ -13,7 +13,7 @@
 //   magnifier, scroll-container, lazy-scroll-container
 //
 // Assets are NEVER bundled. `wallpaper` = image URL (default: a generated
-// gradient, file:// safe). `clock-sdf` = optional URL for SDF clock texture.
+// gradient, file:// safe).
 import { LiquidGlassRenderer } from '../renderer'
 import {
   gooseBuild,
@@ -131,7 +131,7 @@ class LiquidGlass extends HTMLElement {
   }
 
   static get observedAttributes() {
-    return ['mode', 'dark', 'wallpaper', 'clock-sdf', 'dpr', 'corner-style', 'blur-tap-cap', 'overlay-buttons', 'theme-button', 'tabs', 'buttons', 'dialog', 'scroll', 'variant', 'speed', 'scale']
+    return ['mode', 'dark', 'wallpaper', 'dpr', 'corner-style', 'blur-tap-cap', 'overlay-buttons', 'theme-button', 'tabs', 'buttons', 'dialog', 'scroll', 'variant', 'speed', 'scale']
   }
 
   private _isSiri(): boolean {
@@ -171,8 +171,6 @@ class LiquidGlass extends HTMLElement {
     if (wp && wp !== 'gradient') {
       renderer.gooseLoadWP(wp).catch((e: any) => console.warn('[liquid-glass] wallpaper load failed:', e))
     }
-    const sdf = this.getAttribute('clock-sdf')
-    if (sdf) renderer.gooseLoadSDF(sdf).catch((e: any) => console.warn('[liquid-glass] sdf load failed:', e))
 
     const ro = new ResizeObserver(() => this._resize())
     ro.observe(this)
@@ -281,8 +279,6 @@ class LiquidGlass extends HTMLElement {
       this._gradientLoaded = false
       if (val && val !== 'gradient') r.gooseLoadWP(val).catch(() => {})
       else this._maybeLoadGradient()
-    } else if (name === 'clock-sdf') {
-      if (val) r.gooseLoadSDF(val).catch(() => {})
     } else if (name === 'dpr') {
       const dv = parseFloat(val || '0')
       const deviceDpr = window.devicePixelRatio || 1
@@ -501,7 +497,6 @@ class LiquidGlass extends HTMLElement {
       this._renderer ? { current: this._renderer } : undefined,
       !this._dark,
       this.hasAttribute('overlay-buttons') || this.hasAttribute('theme-button') ? this._onToggleTheme : undefined,
-      undefined,
       this._onButtonTap,
       this._tabsConfig,
       this._buttonsConfig,

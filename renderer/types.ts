@@ -65,7 +65,7 @@ export interface GooseBtnCfg {
   /** Optional fixed label font size in CSS px. If not set, the rasterizer
    *  auto-scales from the button height (cssH * 15/48, matching 15sp on a
    *  48dp button). Set this for buttons that specify a fixed sp size in the
-   *  original (e.g. Pick an image = 16sp on a 56dp button). */
+   *  original (e.g. 16sp on a 56dp tall button). */
   labelFontSizePx?: number
   /** Show the right chevron. */
   showChevron: boolean

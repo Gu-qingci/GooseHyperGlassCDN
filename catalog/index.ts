@@ -60,7 +60,6 @@ export function gooseBuild(
   rendererRef?: React.MutableRefObject<LiquidGlassRenderer | null>,
   isLightTheme: boolean = true,
   onToggleTheme?: () => void,
-  onPickImage?: () => void,
   onButtonTap?: (id: string) => void,
   tabsConfig?: Array<Array<{ icon: string; label: string; viewport?: number }>>,
   buttonsConfig?: Array<{ id?: string; label?: string; style?: any }>,
@@ -158,37 +157,6 @@ export function gooseBuild(
     }
     result.elements.push(themeBtn.element)
     result.interactions[themeBtn.element.id] = themeBtn.interaction
-  }
-  // "Pick an image" button — faithful to BackdropDemoScaffold.kt's LiquidButton
-  // at the bottom center. Blue tint, 56dp tall capsule (the original wraps
-  // LiquidButton with Modifier.height(56f.dp), overriding the default 48dp).
-  // The original uses BasicText("Pick an image", TextStyle(White, 16f.sp)) —
-  // a FIXED 16sp, NOT scaled from button height. Horizontal padding = 16dp
-  // (button) + 8dp (text) per side = 48dp total.
-  if (onPickImage) {
-    const pickLabel = 'Pick an image'
-    const pickH = 56 * gooseDP
-    const pickFontPx = 16 // 16sp fixed (original: TextStyle(White, 16f.sp))
-    const pickW = Math.ceil(gooseTextW(pickLabel, pickFontPx) + 2 * (16 * gooseDP + 8 * gooseDP))
-    const pickBtn = gooseBtn(
-      '__pickimage__',
-      { x: W / 2 - pickW / 2, y: H - 16 - pickH, w: pickW, h: pickH },
-      {
-        label: pickLabel,
-        tintColor: [0x00 / 255, 0x88 / 255, 0xff / 255, 1], // accentColor (blue)
-        surfaceColor: [0, 0, 0, 0],
-        labelColor: [1, 1, 1, 1], // white text
-        labelFontSizePx: pickFontPx,
-      },
-      false // scroll = false (fixed at bottom)
-    )
-    result.elements.push(pickBtn)
-    result.interactions['__pickimage__'] = {
-      onTap: () => onPickImage(),
-      onDragStart: () => {},
-      onDrag: () => {},
-      onDragEnd: () => {},
-    }
   }
   // Global separable 2-pass blur: when enabled in Settings, apply useSeparableBlur
   // to all glass elements (buttons + glass-shapes). Skip special elements that

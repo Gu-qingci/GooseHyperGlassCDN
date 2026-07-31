@@ -49,8 +49,6 @@ function getGravityAngle() { return gravityAngle; }
 export const gooseBtnH = 48 * gooseDP
 export const gooseBtnPad = 16 * gooseDP
 export const gooseTextSz = 15 * gooseDP
-export const gooseSubSz = 15 * gooseDP
-export const gooseTitleSz = 28 * gooseDP
 
 export const gooseFont =
   '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
@@ -234,19 +232,6 @@ export const gooseDark: GoosePalette = {
 export function goosePalette(isLightTheme: boolean): GoosePalette {
   return isLightTheme ? gooseLight : gooseDark
 }
-
-// Legacy aliases — kept for backward compat with any code that still
-// references the single-theme constants. They equal the LIGHT palette
-// values. New code should use goosePalette(isLightTheme) instead.
-export const gooseTglAcc: [number, number, number] = gooseLight.toggleAccent
-export const gooseTglTrk: [number, number, number, number] = gooseLight.toggleTrackOff
-export const gooseSldAcc: [number, number, number] = gooseLight.sliderAccent
-export const gooseSldTrk: [number, number, number, number] = gooseLight.sliderTrackOff
-
-// Dialog colors (faithful to DialogContent.kt, light theme).
-export const gooseDlgCont: [number, number, number, number] = gooseLight.dialogContainer
-export const gooseDlgAcc: [number, number, number, number] = gooseLight.dialogAccent
-export const gooseDlgDim: [number, number, number, number] = gooseLight.dialogDim
 
 export const gooseLorem =
   'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.'
