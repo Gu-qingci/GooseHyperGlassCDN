@@ -20,8 +20,7 @@
 
 # 中文
 
-纯 WebGL 渲染的液态玻璃 UI 组件库。一个 `<script>` 标签即用，零运行时依赖。
-> 如果你是被耻辱柱吸引过来的，请看[这里](https://github.com/Minecraftgoose/GooseHyperGlassCDN/blob/main/README.md#%E5%85%B3%E4%BA%8E%E6%9F%90%E8%80%BB%E8%BE%B1%E6%9F%B1%E7%9A%84%E5%9B%9E%E5%BA%94)
+纯 WebGL 渲染的液态玻璃 UI 组件库。一个 `<script>` 标签即用，零运行时依赖.
 
 ## 基于
 
