@@ -32,7 +32,7 @@
 | WebGL 移植版 | [martin65536/liquid-glass-webgl](https://github.com/martin65536/liquid-glass-webgl) | Next.js, WebGL |
 | AI 辅助开发 | WorkBuddy · DeepSeekv4-pro · DeepSeekv4-flash · Hunyuan3 | \ |
 
-GooseHyperGlassCDN2.0 在其基础上做了：
+GooseHyperGlassCDN在其基础上做了：
 - Web 端打包成零依赖的 IIFE bundle（esbuild）
 - 抽出 React 依赖为空桩，纯 Custom Element 实现
 - 提供 CDN 部署和静态文档站
@@ -174,7 +174,7 @@ This project is built on the following upstream:
 | WebGL Port | [martin65536/liquid-glass-webgl](https://github.com/martin65536/liquid-glass-webgl) | Next.js, WebGL |
 | AI Assistance | WorkBuddy · DeepSeekv4-pro · DeepSeekv4-flash · Hunyuan3 | Code gen, docs, debugging |
 
-GooseHyperGlassCDN2.0 wraps it with:
+GooseHyperGlassCDN wraps it with:
 - Zero-dependency IIFE bundle for the web (esbuild)
 - React extracted as an empty stub — pure Custom Element implementation
 - CDN deployment with a static documentation site
