@@ -24,6 +24,7 @@ import { buildMagnifier } from './build-magnifier'
 import { buildScrollContainer } from './build-scroll-container'
 import { buildRating } from './build-rating'
 import { buildRingProgress } from './build-ring-progress'
+import { buildSiriWave } from './build-siri-wave'
 
 // Re-export public API (preserving the original catalog.tsx surface).
 export {
@@ -119,6 +120,10 @@ export function gooseBuild(
     case GooseDest.RingProgress:
       result = buildRingProgress(W, H, onBack, state, setState, rendererRef, palette)
       break
+    case GooseDest.SiriWave:
+      // siri-wave 是纯 shader 动画（组件层独立渲染），此处仅占位。
+      result = buildSiriWave(W, H)
+      break
     default:
       result = buildButtons(W, H, onBack, palette, onButtonTap)
       break
@@ -126,12 +131,9 @@ export function gooseBuild(
   // Move the back button to the end of the element list so it's on top of
   // all layers (scrims, overlays, glass elements). It was pushed first by
   // each builder, but scrims/overlays pushed after it would cover it.
-  // When hideOverlayButtons is true (default), the back button + theme toggle
-  // are NOT rendered on non-Settings pages — use the browser back button / Esc
-  // to return to Home. Settings itself is EXEMPT so you can always toggle this
-  // setting back off (otherwise you'd be locked out of the Settings controls).
-  const isSettings = dest === GooseDest.Settings
-  const hideOverlays = state.hideOverlayButtons && !isSettings
+  // When hideOverlayButtons is true, the back button + theme toggle are NOT
+  // rendered — use the browser back button / Esc instead.
+  const hideOverlays = state.hideOverlayButtons
   const backIdx = result.elements.findIndex((e) => e.id === '__back__')
   if (backIdx >= 0) {
     if (hideOverlays) {
@@ -163,8 +165,7 @@ export function gooseBuild(
   // The original uses BasicText("Pick an image", TextStyle(White, 16f.sp)) —
   // a FIXED 16sp, NOT scaled from button height. Horizontal padding = 16dp
   // (button) + 8dp (text) per side = 48dp total.
-  // Only on non-Home pages.
-  if (onPickImage && dest !== GooseDest.Home) {
+  if (onPickImage) {
     const pickLabel = 'Pick an image'
     const pickH = 56 * gooseDP
     const pickFontPx = 16 // 16sp fixed (original: TextStyle(White, 16f.sp))

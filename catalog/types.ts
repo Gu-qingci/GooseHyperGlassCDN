@@ -5,7 +5,6 @@ import type { GooseElement, GooseHL } from '../renderer'
  * GooseDest — faithful port of GooseDest.kt
  * ------------------------------------------------------------------ */
 export enum GooseDest {
-  Home,
   Buttons,
   Toggle,
   SingleToggle,
@@ -17,18 +16,12 @@ export enum GooseDest {
   SliderCard,
   BottomTabs2,
   Dialog,
-  LockScreen,
-  ControlCenter,
   Magnifier,
-  GlassPlayground,
-  AdaptiveLuminanceGlass,
-  ProgressiveBlur,
   ScrollContainer,
   LazyScrollContainer,
-  Settings,
-  About,
   Rating,
   RingProgress,
+  SiriWave,
 }
 
 /* ------------------------------------------------------------------ *
@@ -52,148 +45,6 @@ export function gooseLerp(a: number, b: number, t: number): number {
 let gravityAngle = 45
 export function gooseGravAngle(a: number) { gravityAngle = a; }
 function getGravityAngle() { return gravityAngle; }
-
-// Control-center snap animation state. Shared mutable object so that both
-// `gooseCCAnim` (in this module) and `buildControlCenter`
-// (in build-control-center.ts) can read/cancel the running animation.
-// Faithful to the original's two separate Animatable values:
-//   enterProgressAnimation (raw, can go <0 / >1)
-//   safeEnterProgressAnimation (clamped 0..1)
-export const gooseCCAnim2: {
-  handle: number | null
-  lastVelocity: number // progress/s — initial velocity for the raw spring
-} = {
-  handle: null,
-  lastVelocity: 0,
-}
-
-/* ------------------------------------------------------------------ *
- * ProgressConverter — faithful port of ProgressConverter.kt
- *   convert(p) = (1 - exp(-|p|)) * sign(p)
- *
- * This dampens overscroll exponentially: as |p| grows, the converted
- * value approaches ±1 asymptotically. Used by ControlCenterContent.kt's
- * derivedStateOf to map raw enterProgress → visual progress:
- *   p < 0  → convert(p)              (approaches -1)
- *   0..1   → p                        (linear)
- *   p > 1  → 1 + convert(p - 1)      (approaches 2)
- * ------------------------------------------------------------------ */
-export function gooseConv(p: number): number {
-  return (1 - Math.exp(-Math.abs(p))) * Math.sign(p)
-}
-export function gooseDerived(p: number): number {
-  if (p < 0) return gooseConv(p)
-  if (p <= 1) return p
-  return 1 + gooseConv(p - 1)
-}
-
-/** Animate controlCenterEnter (raw) AND controlCenterSafeEnter (clamped)
- *  to `target` (0 or 1) via springs.
- *
- *  Faithful to ControlCenterContent.kt onDragStopped:
- *    enterProgressAnimation.animateTo(
- *        target,
- *        if (target > 0.5) spring(0.5, 300, 0.5/maxDragHeight)  // underdamped
- *        else              spring(1.0, 300, 0.01),               // critical
- *        velocity / maxDragHeight                                 // initial vel
- *    )
- *    safeEnterProgressAnimation.animateTo(
- *        target, spring(1.0, 300, 0.01)   // always critical, NO initial vel
- *    )
- *
- *  The raw spring BOUNCES on expand (underdamped ζ=0.5) giving the
- *  characteristic overshoot when releasing an over-pulled control center.
- *  The safe spring settles smoothly (critical ζ=1.0) so alpha/dim/blur
- *  never overshoot.
- *
- *  Uses the ANALYTICAL spring solution (not numerical integration) for
- *  exact Compose-spring behavior at any frame rate. */
-export function gooseCCAnim(
-  setState: (patch: Partial<GooseState> | ((prev: GooseState) => Partial<GooseState>)) => void,
-  target: number,
-  maxDrag: number,
-  initialVelocity: number // progress/s — already converted from px/s
-) {
-  if (gooseCCAnim2.handle != null) cancelAnimationFrame(gooseCCAnim2.handle)
-
-  // Spring params (faithful to Compose spring(dampingRatio, stiffness, visibilityThreshold))
-  const stiffness = 300
-  const omega0 = Math.sqrt(stiffness) // natural frequency (m=1)
-  const dampingRatioRaw = target > 0.5 ? 0.5 : 1.0 // underdamped for expand, critical for collapse
-  const dampingRatioSafe = 1.0 // always critical
-  // Visibility thresholds — the spring is considered settled below these.
-  const visThresholdRaw = target > 0.5 ? 0.5 / maxDrag : 0.01
-  const visThresholdSafe = 0.01
-
-  let posRaw = -1
-  let posSafe = -1
-  let velRaw = initialVelocity
-  let velSafe = 0
-  let lastT = -1
-
-  /** Analytical spring step. Given current pos, vel, and dt, computes
-   *  the exact new pos and vel after dt. Uses the closed-form solution
-   *  of the damped harmonic oscillator. */
-  function springStep(
-    pos: number, vel: number, tgt: number,
-    ratio: number, dt: number
-  ): { p: number; v: number } {
-    const A = pos - tgt
-    if (ratio >= 1) {
-      // Critically damped: y(t) = (A + B*t) * e^(-ω₀t)
-      //   A = pos - target, B = vel + ω₀*A
-      const B = vel + omega0 * A
-      const ed = Math.exp(-omega0 * dt)
-      const newPos = tgt + (A + B * dt) * ed
-      const newVel = (vel - omega0 * B * dt) * ed
-      return { p: newPos, v: newVel }
-    }
-    // Underdamped: y(t) = e^(-ζω₀t) * (A*cos(ωd*t) + B*sin(ωd*t))
-    //   A = pos - target, B = (vel + ζω₀*A) / ωd
-    const omegaD = omega0 * Math.sqrt(1 - ratio * ratio)
-    const B = (vel + ratio * omega0 * A) / omegaD
-    const ed = Math.exp(-ratio * omega0 * dt)
-    const cd = Math.cos(omegaD * dt)
-    const sd = Math.sin(omegaD * dt)
-    const newPos = tgt + ed * (A * cd + B * sd)
-    const newVel = ed * ((B * omegaD - ratio * omega0 * A) * cd - (A * omegaD + ratio * omega0 * B) * sd)
-    return { p: newPos, v: newVel }
-  }
-
-  const step = (now: number) => {
-    setState((prev) => {
-      if (posRaw < 0) posRaw = prev.controlCenterEnter
-      if (posSafe < 0) posSafe = prev.controlCenterSafeEnter
-      let dt: number
-      if (lastT < 0) {
-        dt = 1 / 60
-      } else {
-        dt = Math.min(0.05, (now - lastT) / 1000)
-      }
-      lastT = now
-
-      // Analytical spring step — exact solution, no integration error.
-      const r = springStep(posRaw, velRaw, target, dampingRatioRaw, dt)
-      posRaw = r.p
-      velRaw = r.v
-      const s = springStep(posSafe, velSafe, target, dampingRatioSafe, dt)
-      posSafe = s.p
-      velSafe = s.v
-
-      const doneRaw = Math.abs(target - posRaw) < visThresholdRaw && Math.abs(velRaw) < visThresholdRaw * 10
-      const doneSafe = Math.abs(target - posSafe) < visThresholdSafe && Math.abs(velSafe) < visThresholdSafe * 10
-
-      if (doneRaw && doneSafe) {
-        gooseCCAnim2.handle = null
-        gooseCCAnim2.lastVelocity = 0
-        return { controlCenterEnter: target, controlCenterSafeEnter: target }
-      }
-      gooseCCAnim2.handle = requestAnimationFrame(step)
-      return { controlCenterEnter: posRaw, controlCenterSafeEnter: posSafe }
-    })
-  }
-  gooseCCAnim2.handle = requestAnimationFrame(step)
-}
 
 export const gooseBtnH = 48 * gooseDP
 export const gooseBtnPad = 16 * gooseDP
@@ -405,45 +256,6 @@ export const gooseLorem =
 export const gooseFlight =
   'M400 552 L147 653 q-24 10 -45.5 -4.5 T80 608 v-22 q0 -12 5.5 -23 t15.5 -18 l299 -209 v-176 q0 -33 23.5 -56.5 T480 80 q33 0 56.5 23.5 T560 160 v176 l299 209 q10 7 15.5 18 t5.5 23 v22 q0 26 -21.5 40.5 T813 653 L560 552 v144 l103 72 q8 6 12.5 14.5 T680 801 v24 q0 20 -16.5 32.5 T627 864 l-147 -44 l-147 44 q-20 6 -36.5 -6.5 T280 825 v-24 q0 -10 4.5 -18.5 T297 768 l103 -72 v-144 Z'
 
-// Catalog home-page structure — faithful to HomeContent.kt
-export const gooseHomeSec: { title: string; items: { dest: GooseDest; label: string }[] }[] = [
-  {
-    title: 'Liquid glass components',
-    items: [
-      { dest: GooseDest.Buttons, label: 'Buttons' },
-      { dest: GooseDest.Toggle, label: 'Toggle' },
-      { dest: GooseDest.Slider, label: 'Slider' },
-      { dest: GooseDest.BottomTabs, label: 'Bottom tabs' },
-      { dest: GooseDest.Dialog, label: 'Dialog' },
-    ],
-  },
-  {
-    title: 'System UIs',
-    items: [
-      { dest: GooseDest.LockScreen, label: 'Lock screen (SDF texture)' },
-      { dest: GooseDest.ControlCenter, label: 'Control center' },
-      { dest: GooseDest.Magnifier, label: 'Magnifier' },
-    ],
-  },
-  {
-    title: 'Experiments',
-    items: [
-      { dest: GooseDest.GlassPlayground, label: 'Glass playground' },
-      { dest: GooseDest.AdaptiveLuminanceGlass, label: 'Adaptive luminance glass' },
-      { dest: GooseDest.ProgressiveBlur, label: 'Progressive blur' },
-      { dest: GooseDest.ScrollContainer, label: 'Scroll container' },
-      { dest: GooseDest.LazyScrollContainer, label: 'Lazy scroll container' },
-    ],
-  },
-  {
-    title: 'System',
-    items: [
-      { dest: GooseDest.Settings, label: 'Settings' },
-      { dest: GooseDest.About, label: 'About' },
-    ],
-  },
-]
-
 /* ------------------------------------------------------------------ *
  * Catalog result type — returned by each destination builder.
  * ------------------------------------------------------------------ */
@@ -466,66 +278,22 @@ export interface GooseState {
   sliderValue: number
   selectedTab: number
   selectedTab2: number
-  // GlassPlayground
-  cornerRadiusFrac: number
-  blurRadiusDp: number
-  refractionHeightFrac: number
-  refractionAmountFrac: number
-  chromaticAberration: number
   // Magnifier
   magnifierX: number
   magnifierY: number
-  // LockScreen
-  lockScreenOffsetX: number
-  lockScreenOffsetY: number
-  // ControlCenter — bitmask of active tiles (bit 0 = cc-a, bit 1 = cc-b, ...)
-  controlCenterActive: number
-  // ControlCenter — raw enter progress (can go <0 / >1 for overscroll)
-  controlCenterEnter: number
-  // ControlCenter — safe enter progress (clamped 0..1, for alpha/dim/blur)
-  controlCenterSafeEnter: number
-  // GlassPlayground sheet expanded
-  gpSheetExpanded: boolean
-  // GlassPlayground glass transform
-  gpOffsetX: number
-  gpOffsetY: number
-  gpZoom: number
-  gpRotation: number
-  // AdaptiveLuminanceGlass drag offset
-  algOffsetX: number
-  algOffsetY: number
-  // AdaptiveLuminanceGlass — measured average luminance (0..1) of the
-  // backdrop behind the glass. Drives brightness/contrast/blur/contentColor
-  // per AdaptiveLuminanceGlassContent.kt. Updated via GPU readback in
-  // page.tsx (1px sample at glass center, throttled).
-  adaptiveLuminance: number
-  // Settings — custom DPR override (0 = use default capped DPR)
-  customDpr: number
-  // Settings — global separable 2-pass blur toggle
-  globalSeparableBlur: boolean
-  // Settings — blur tap cap (1..33, max 1D taps per separable pass)
-  blurTapCap: number
-  // Settings — blur downsample factor (1=full-res, 2/4=downsampled)
-  blurDownsample: number
-  // Settings — corner style: true = continuous (squircle, faithful to original
-  // Capsule's ContinuousCurvature), false = circular (standard arc).
-  // Settings — capsule shape via continuous-curvature SDF texture. When true,
-  // the dialog card samples a precomputed SDF texture (generated from the
-  // G2-continuous Bezier path) instead of the analytic sdRoundedRect SDF.
-  // This gives pixel-perfect squircle corners on the dialog card. Other
-  // elements still use the analytic SDF (circular or continuous placeholder).
-  capsuleShape: boolean
-  // Settings — live (drag-in-progress) display values for slider labels
-  liveDpr: number | null
-  liveTapCap: number | null
   // Settings — hide the overlay exit (back) and theme toggle buttons on all
-  // non-Home pages. Default false (buttons visible). When true, the back
-  // button is still reachable via the browser back button / Esc.
+  // pages. Default false (buttons visible). When true, the back button is
+  // still reachable via the browser back button / Esc.
   hideOverlayButtons: boolean
   // Rating — number of selected stars (0-5)
   ratingValue: number
   // Ring progress — progress value (0-100)
   ringProgressValue: number
+  // Settings — global separable 2-pass blur toggle
+  globalSeparableBlur: boolean
+  // Settings — corner style: true = continuous (squircle, faithful to original
+  // Capsule's ContinuousCurvature), false = circular (standard arc).
+  capsuleShape: boolean
 }
 
 export const gooseDefState: GooseState = {
@@ -533,33 +301,10 @@ export const gooseDefState: GooseState = {
   sliderValue: 50,
   selectedTab: 0,
   selectedTab2: 0,
-  cornerRadiusFrac: 0.5,
-  blurRadiusDp: 0,
-  refractionHeightFrac: 0.2,
-  refractionAmountFrac: 0.2,
-  chromaticAberration: 0,
   magnifierX: 0,
   magnifierY: 0,
-  lockScreenOffsetX: 0,
-  lockScreenOffsetY: 0,
-  controlCenterActive: 0,
-  controlCenterEnter: 1,
-  controlCenterSafeEnter: 1,
-  gpSheetExpanded: true,
-  gpOffsetX: 0,
-  gpOffsetY: 0,
-  gpZoom: 1,
-  gpRotation: 0,
-  algOffsetX: 0,
-  algOffsetY: 0,
-  adaptiveLuminance: 0.5,
-  customDpr: 0,
   globalSeparableBlur: true,
-  blurTapCap: 17,
-  blurDownsample: 1,
   capsuleShape: true,
-  liveDpr: null,
-  liveTapCap: null,
   hideOverlayButtons: false,
   ratingValue: 0,
   ringProgressValue: 50,

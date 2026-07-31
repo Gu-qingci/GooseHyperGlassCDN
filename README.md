@@ -30,6 +30,7 @@
 |------|------|--------|
 | 原项目 | [Kyant0/AndroidLiquidGlass](https://github.com/Kyant0/AndroidLiquidGlass) | Android, Kotlin |
 | WebGL 移植版 | [martin65536/liquid-glass-webgl](https://github.com/martin65536/liquid-glass-webgl) | Next.js, WebGL |
+| Siri 动画来自 | [aaaa-zhen/siri-glsl](https://github.com/aaaa-zhen/siri-glsl) | WebGL, GLSL |
 | AI 辅助开发 | WorkBuddy · DeepSeekv4-pro · DeepSeekv4-flash · Hunyuan3 | \ |
 
 GooseHyperGlassCDN在其基础上做了：
@@ -37,6 +38,7 @@ GooseHyperGlassCDN在其基础上做了：
 - 抽出 React 依赖为空桩，纯 Custom Element 实现
 - 提供 CDN 部署和静态文档站
 - 加上全中文界面和试玩示例
+- `siri-wave` mode 与 `<liquid-glass-search>` 组件移植自 aaaa-zhen/siri-glsl（MIT）
 
 ## 线上地址
 
@@ -172,6 +174,7 @@ This project is built on the following upstream:
 |---------|------------|------------|
 | Original | [Kyant0/AndroidLiquidGlass](https://github.com/Kyant0/AndroidLiquidGlass) | Android, Kotlin |
 | WebGL Port | [martin65536/liquid-glass-webgl](https://github.com/martin65536/liquid-glass-webgl) | Next.js, WebGL |
+| Siri | [aaaa-zhen/siri-glsl](https://github.com/aaaa-zhen/siri-glsl) | WebGL, GLSL |
 | AI Assistance | WorkBuddy · DeepSeekv4-pro · DeepSeekv4-flash · Hunyuan3 | Code gen, docs, debugging |
 
 GooseHyperGlassCDN wraps it with:
@@ -179,6 +182,7 @@ GooseHyperGlassCDN wraps it with:
 - React extracted as an empty stub — pure Custom Element implementation
 - CDN deployment with a static documentation site
 - Full Chinese UI and interactive demos
+- `siri-wave` mode and `<liquid-glass-search>` component ported from aaaa-zhen/siri-glsl (MIT)
 
 ## Live URLs
 

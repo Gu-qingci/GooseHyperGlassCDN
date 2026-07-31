@@ -41,6 +41,8 @@ export {
   PLAIN_RECT_FRAGMENT_SHADER,
   PROGRESSIVE_BLUR_FRAGMENT_SHADER,
 } from './scene-fg'
+export { SIRI_WAVE_FRAGMENT_SHADER } from './siri-wave'
+export { SIRI_ORB_FRAGMENT_SHADER } from './siri-orb'
 export {
   generateSeparableBlurShader,
   computeBlur1DTapCount,

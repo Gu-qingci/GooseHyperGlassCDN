@@ -21,6 +21,7 @@ import {
   gooseDefState,
   gooseDragGroups,
 } from '../catalog'
+import { SiriWaveRunner, type SiriVariant } from '../catalog/build-siri-wave'
 
 type AnyEl = any
 type Interact = {
@@ -50,6 +51,7 @@ const MODE_MAP: Record<string, GooseDest> = {
   'rating-card': GooseDest.Rating,
   'ring-progress': GooseDest.RingProgress,
   'ring-progress-card': GooseDest.RingProgress,
+  'siri-wave': GooseDest.SiriWave,
 }
 
 // Reverse map: GooseDest enum value -> mode name (for lg-navigate event).
@@ -95,6 +97,7 @@ type GestureState = {
 class LiquidGlass extends HTMLElement {
   private _canvas!: HTMLCanvasElement
   private _renderer: AnyEl = null
+  private _siri: SiriWaveRunner | null = null
   private _state: AnyEl
   private _elements: AnyEl[] = []
   private _interactions: Record<string, Interact> = {}
@@ -128,15 +131,24 @@ class LiquidGlass extends HTMLElement {
   }
 
   static get observedAttributes() {
-    return ['mode', 'dark', 'wallpaper', 'clock-sdf', 'dpr', 'corner-style', 'blur-tap-cap', 'overlay-buttons', 'theme-button', 'tabs', 'buttons', 'dialog', 'scroll']
+    return ['mode', 'dark', 'wallpaper', 'clock-sdf', 'dpr', 'corner-style', 'blur-tap-cap', 'overlay-buttons', 'theme-button', 'tabs', 'buttons', 'dialog', 'scroll', 'variant', 'speed', 'scale']
+  }
+
+  private _isSiri(): boolean {
+    return this._mode() === GooseDest.SiriWave
   }
 
   connectedCallback() {
-    if (this._renderer) return
+    if (this._renderer || this._siri) return
     this._dark = this.hasAttribute('dark')
     const overlayButtons = this.hasAttribute('overlay-buttons')
     this._showThemeButton = this.hasAttribute('theme-button')
     this._state = { ...gooseDefState, hideOverlayButtons: !overlayButtons }
+
+    if (this._isSiri()) {
+      this._initSiri()
+      return
+    }
 
     const renderer = new LiquidGlassRenderer(this._canvas)
     this._renderer = renderer
@@ -153,7 +165,7 @@ class LiquidGlass extends HTMLElement {
     if (corner != null) renderer.cornerStyle = parseFloat(corner)
 
     const mode = this._mode()
-    renderer.gooseBG(mode === GooseDest.Home ? [0, 0, 0] : null)
+    renderer.gooseBG(null)
 
     const wp = this.getAttribute('wallpaper')
     if (wp && wp !== 'gradient') {
@@ -189,6 +201,10 @@ class LiquidGlass extends HTMLElement {
       this._canvas.removeEventListener('pointerleave', this._onUp)
       this._canvas.removeEventListener('pointercancel', this._onUp)
     }
+    if (this._siri) {
+      this._siri.kill()
+      this._siri = null
+    }
     if (this._renderer) {
       this._renderer.gooseKill()
       this._renderer = null
@@ -196,16 +212,67 @@ class LiquidGlass extends HTMLElement {
   }
 
   attributeChangedCallback(name: string, _old: string | null, val: string | null) {
-    if (!this._renderer) return
-    const r = this._renderer
+    if (!this._renderer && !this._siri) return
     if (name === 'mode') {
       const oldM = (_old || 'bottom-tabs').toLowerCase()
       if (oldM !== 'dialog') this._prevMode = oldM
-      r.gooseScrollY(0)
-      this._rebuild()
-    } else if (name === 'dark') {
+      const isSiri = this._isSiri()
+      if (isSiri) {
+        // 玻璃 → siri：销毁玻璃 renderer，启独立 shader 动画
+        if (this._renderer) {
+          this._renderer.gooseKill()
+          this._renderer = null
+          this._canvas.removeEventListener('wheel', this._onWheel)
+          this._canvas.removeEventListener('pointerdown', this._onDown)
+        }
+        this._initSiri()
+      } else if (this._siri) {
+        // siri → 玻璃：销毁 runner，重建玻璃 renderer
+        this._siri.kill()
+        this._siri = null
+        const renderer = new LiquidGlassRenderer(this._canvas)
+        this._renderer = renderer
+        const dprAttr = this.getAttribute('dpr')
+        if (dprAttr != null) {
+          const dv = parseFloat(dprAttr)
+          const deviceDpr = window.devicePixelRatio || 1
+          renderer.dpr = dv > 0 ? Math.max(0.5, Math.min(deviceDpr, dv)) : deviceDpr
+        }
+        const wp = this.getAttribute('wallpaper')
+        if (wp && wp !== 'gradient') renderer.gooseLoadWP(wp).catch(() => {})
+        else this._maybeLoadGradient()
+        this._canvas.addEventListener('wheel', this._onWheel, { passive: false })
+        this._canvas.addEventListener('pointerdown', this._onDown)
+        renderer.gooseScrollY(0)
+        this._rebuild()
+      } else {
+        this._renderer.gooseScrollY(0)
+        this._rebuild()
+      }
+      return
+    }
+    if (this._isSiri()) {
+      // siri-wave 只响应自身属性；dark/wallpaper 等玻璃属性忽略
+      if (name === 'variant') {
+        this._siri!.variant = val === 'orb' ? 'orb' : 'wave'
+      } else if (name === 'speed') {
+        const sp = parseFloat(val || '')
+        if (!isNaN(sp) && sp > 0) this._siri!.speed = sp
+      } else if (name === 'scale') {
+        const sc = parseFloat(val || '')
+        if (!isNaN(sc) && sc > 0) this._siri!.scale = sc
+      } else if (name === 'dpr') {
+        const dv = parseFloat(val || '0')
+        const deviceDpr = window.devicePixelRatio || 1
+        this._siri!.dpr = dv > 0 ? Math.max(0.5, Math.min(deviceDpr, dv)) : deviceDpr
+        this._resize()
+      }
+      return
+    }
+    const r = this._renderer
+    if (name === 'dark') {
       this._dark = this.hasAttribute('dark')
-      r.gooseBG(this._mode() === GooseDest.Home ? [0, 0, 0] : null)
+      r.gooseBG(null)
       this._gradientLoaded = false
       this._maybeLoadGradient()
       this._rebuild()
@@ -275,6 +342,28 @@ class LiquidGlass extends HTMLElement {
     return MODE_MAP[m] ?? GooseDest.BottomTabs
   }
 
+  /** 初始化 siri-wave 独立渲染路径（纯 shader 动画，不走玻璃管线）。 */
+  private _initSiri() {
+    if (this._siri) return
+    const runner = new SiriWaveRunner(this._canvas)
+    this._siri = runner
+    const deviceDpr = window.devicePixelRatio || 1
+    const dprAttr = this.getAttribute('dpr')
+    runner.dpr = dprAttr
+      ? Math.max(0.5, Math.min(deviceDpr, parseFloat(dprAttr) || deviceDpr))
+      : deviceDpr
+    const v = this.getAttribute('variant')
+    if (v === 'orb') runner.variant = 'orb'
+    const sp = parseFloat(this.getAttribute('speed') || '')
+    if (!isNaN(sp) && sp > 0) runner.speed = sp
+    const sc = parseFloat(this.getAttribute('scale') || '')
+    if (!isNaN(sc) && sc > 0) runner.scale = sc
+    const ro = new ResizeObserver(() => this._resize())
+    ro.observe(this)
+    this._ro = ro
+    this._resize()
+  }
+
   private _maybeLoadGradient() {
     const wp = this.getAttribute('wallpaper')
     if (this._w <= 0 || this._gradientLoaded) return
@@ -299,6 +388,11 @@ class LiquidGlass extends HTMLElement {
     this._h = r.height
     this._canvas.style.width = r.width + 'px'
     this._canvas.style.height = r.height + 'px'
+    if (this._siri) {
+      this._siri.resize(r.width, r.height)
+      this._siri.start()
+      return
+    }
     this._renderer?.gooseResize(r.width, r.height)
     this._maybeLoadGradient()
     this._rebuild()
@@ -316,6 +410,12 @@ class LiquidGlass extends HTMLElement {
   private _setState(patch: AnyEl) {
     const next = typeof patch === 'function' ? patch(this._state) : patch
     this._state = { ...this._state, ...next }
+    if (this._siri) {
+      // siri-wave 参数透传（variant/speed/scale），其余状态字段忽略
+      if (next.variant != null) this._siri.variant = next.variant
+      if (next.speed != null && next.speed > 0) this._siri.speed = next.speed
+      if (next.scale != null && next.scale > 0) this._siri.scale = next.scale
+    }
     this._emitState()
     this._rebuild()
   }
@@ -371,7 +471,7 @@ class LiquidGlass extends HTMLElement {
   }
   private _onToggleTheme = () => {
     this._dark = !this._dark
-    this._renderer?.gooseBG(this._mode() === GooseDest.Home ? [0, 0, 0] : null)
+    this._renderer?.gooseBG(null)
     this._gradientLoaded = false
     this._maybeLoadGradient()
     this._emitState()
@@ -379,7 +479,13 @@ class LiquidGlass extends HTMLElement {
   }
 
   private _rebuild() {
-    if (!this._renderer || this._disposed) return
+    if (this._disposed) return
+    if (this._siri) {
+      // siri-wave：纯 shader 动画，无玻璃元素，仅确保循环在跑
+      this._siri.start()
+      return
+    }
+    if (!this._renderer) return
     const W = this._w
     const H = this._h
     if (!W || !H) return
@@ -787,3 +893,7 @@ class LiquidGlass extends HTMLElement {
 }
 
 customElements.define('liquid-glass', LiquidGlass)
+
+// 独立组件 <liquid-glass-search>（拖拽唤醒搜索框，独立 WebGL2 通道）。
+// 副作用 import：与主组件共用同一 bundle，引入一个 script 即两个元素都可用。
+import './liquid-glass-search'
